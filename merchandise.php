@@ -1,0 +1,305 @@
+<?php
+session_start();
+require_once "database.php";
+if (!isset($_SESSION['email'])) {
+    header("Location: login.php");
+    exit;
+}
+
+$userEmail = $_SESSION["email"];
+
+$sql = "SELECT user_type, personID FROM person WHERE email = ?";
+$stmt = mysqli_stmt_init($conn);
+if (mysqli_stmt_prepare($stmt, $sql)) {
+    mysqli_stmt_bind_param($stmt, "s", $userEmail);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_bind_result($stmt, $userType, $userId);
+    mysqli_stmt_fetch($stmt);
+    mysqli_stmt_close($stmt);
+}
+
+if ($userType !== 'customer' && $userType !== 'service_man') {
+    echo "<script>alert('You do not have access to this page.');</script>";
+    echo "<script>window.location.href = 'index.php';</script>";
+    exit;
+}
+
+$query = "SELECT * FROM Merchandise";
+$result = $conn->query($query);
+
+if ($userType === 'service_man') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (isset($_POST['add_merchandise'])) {
+            $merchName = $_POST['merch_name'];
+            $price = $_POST['price'];
+            $stockQuantity = $_POST['stock_quantity'];
+
+            $addQuery = "INSERT INTO Merchandise (merch_name, price, stock_quantity) VALUES (?, ?, ?)";
+            $stmt = mysqli_stmt_init($conn);
+            if (mysqli_stmt_prepare($stmt, $addQuery)) {
+                mysqli_stmt_bind_param($stmt, "sdi", $merchName, $price, $stockQuantity);
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
+            }
+            echo "<script>alert('Changes confirmed successfully!');</script>";
+            echo "<script>window.location.href = 'merchandise.php';</script>";
+        } elseif (isset($_POST['restock_merchandise'])) {
+            $merchandiseId = $_POST['merchandise_id'];
+            $restockQuantity = $_POST['restock_quantity'];
+
+            $restockQuery = "UPDATE Merchandise SET stock_quantity = stock_quantity + ? WHERE merchandise_id = ?";
+            $stmt = mysqli_stmt_init($conn);
+            if (mysqli_stmt_prepare($stmt, $restockQuery)) {
+                mysqli_stmt_bind_param($stmt, "ii", $restockQuantity, $merchandiseId);
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
+            }
+            echo "<script>alert('Changes confirmed successfully!');</script>";
+            echo "<script>window.location.href = 'merchandise.php';</script>";
+        } elseif (isset($_POST['update_price'])) {
+            $merchandiseId = $_POST['merchandise_id'];
+            $newPrice = $_POST['new_price'];
+
+            $updatePriceQuery = "UPDATE Merchandise SET price = ? WHERE merchandise_id = ?";
+            $stmt = mysqli_stmt_init($conn);
+            if (mysqli_stmt_prepare($stmt, $updatePriceQuery)) {
+                mysqli_stmt_bind_param($stmt, "di", $newPrice, $merchandiseId);
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
+            }
+            echo "<script>alert('Changes confirmed successfully!');</script>";
+            echo "<script>window.location.href = 'merchandise.php';</script>";
+        } elseif (isset($_POST['remove_merchandise'])) {
+            $merchandiseId = $_POST['merchandise_id'];
+
+            $removeQuery = "DELETE FROM Merchandise WHERE merchandise_id = ?";
+            $stmt = mysqli_stmt_init($conn);
+            if (mysqli_stmt_prepare($stmt, $removeQuery)) {
+                mysqli_stmt_bind_param($stmt, "i", $merchandiseId);
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
+            }
+            echo "<script>alert('Changes confirmed successfully!');</script>";
+            echo "<script>window.location.href = 'merchandise.php';</script>";
+        }
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Merchandise</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-Zenh87qX5JnK2Jl0vWa8Ck2rdkQ2Bzep5IDxbcnCeuOxjzrPF/et3URy9Bv1WTRi" crossorigin="anonymous">
+    <style>
+        body {
+            background-color: #0a192f;
+            color: #ccd6f6;
+            font-family: 'Courier New', monospace;
+            height: 100vh;
+        }
+        .sidebar {
+            background-color: #112240;
+            border-right: 1px solid #1e2a4a;
+        }
+        .btn-outline-primary {
+            color: #64ffda;
+            border-color: #64ffda;
+            border-radius: 0;
+            text-align: left;
+            transition: all 0.3s;
+        }
+        .btn-outline-primary:hover {
+            background-color: #64ffda;
+            color:rgb(21, 149, 199);
+            transform: translateX(5px);
+        }
+        .btn-outline-danger {
+            color: #ff5555;
+            border-color: #ff5555;
+            border-radius: 0;
+            text-align: left;
+        }
+        .btn-outline-danger:hover {
+            background-color: #ff5555;
+            color: #0a192f;
+        }
+        h1, h5 {
+            color: #64ffda;
+        }
+        .nav-heading {
+            border-bottom: 1px solid #64ffda;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background-color: #112240;
+            border: 1px solid #64ffda;
+            border-radius: 0;
+            box-shadow: 0 0 20px rgba(100, 255, 218, 0.1);
+        }
+        .table {
+            color: #ccd6f6;
+            border-color: #64ffda;
+        }
+        .table th {
+            border-color: #64ffda;
+            color: #64ffda;
+        }
+        .table td {
+            border-color: #1e2a4a;
+            vertical-align: middle;
+        }
+        .btn-buy {
+            background-color: #64ffda;
+            color: #0a192f;
+            border: none;
+            border-radius: 0;
+            padding: 5px 15px;
+            transition: all 0.3s;
+        }
+        .btn-buy:hover {
+            background-color: #52e0c4;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+
+<body class="vh-100">
+    <div class="container-fluid h-100">
+        <div class="row h-100">
+            <div class="col-md-3 sidebar p-4 d-flex flex-column gap-3">
+                <h5 class="nav-heading">PCTIKLER CONTROL PANEL</h5>
+                <a href="index.php" class="btn btn-outline-primary">
+                    <i class="bi bi-cloud"></i> DASHBOARD
+                </a>
+                <a href="services.php" class="btn btn-outline-primary">
+                    <i class="bi bi-cloud"></i> Services
+                </a>
+                <a href="sell.php" class="btn btn-outline-primary">
+                    <i class="bi bi-cpu"></i> Sell Used Products
+                </a>
+                <a href="hire.php" class="btn btn-outline-primary">
+                    <i class="bi bi-code-square"></i> Hire to Build
+                </a>
+                <a href="expo.php" class="btn btn-outline-primary">
+                    <i class="bi bi-easel"></i> Tech Expo
+                </a>
+                <a href="component.php" class="btn btn-outline-primary">
+                    <i class="bi bi-lightning-charge"></i> Components
+                </a>
+                <a href="merchandise.php" class="btn btn-outline-primary">
+                    <i class="bi bi-lightning-charge"></i> Merchandise
+                </a>
+                <a href="logout.php" class="btn btn-outline-danger">
+                    <i class="bi bi-power"></i> System Logout
+                </a>
+            </div>
+
+            <div class="col-md-9 p-4">
+                <div class="card shadow p-4">
+                    <h1 class="mb-4 text-center"><i class="bi bi-lightning-charge"></i> Merchandise</h1>
+                    <?php if ($userType === 'service_man'): ?>
+                        <div class="mb-4">
+                            <h3>Add New Merchandise</h3>
+                            <form method="POST" class="mt-4">
+                                <input type="text" name="merch_name" placeholder="Merchandise Name" class="form-control mb-2" required>
+                                <input type="number" step="0.01" name="price" placeholder="Price" class="form-control mb-2" required>
+                                <input type="number" name="stock_quantity" placeholder="Stock Quantity" class="form-control mb-2" required>
+                                <button type="submit" name="add_merchandise" class="btn btn-primary">Add Merchandise</button>
+                            </form>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($result->num_rows > 0): ?>
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Merchandise ID</th>
+                                    <th>Name</th>
+                                    <th>Price</th>
+                                    <th>Stock</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php while ($row = $result->fetch_assoc()): ?>
+                                    <tr>
+                                        <td><?php echo $row['merchandise_id']; ?></td>
+                                        <td><?php echo $row['merch_name']; ?></td>
+                                        <td>$<?php echo $row['price']; ?></td>
+                                        <td><?php echo $row['stock_quantity']; ?></td>
+                                        <td>
+                                            <?php if ($userType === 'service_man'): ?>
+                                                <form method="POST" class="d-inline">
+                                                    <input type="hidden" name="merchandise_id" value="<?php echo $row['merchandise_id']; ?>">
+                                                    <input type="number" name="restock_quantity" placeholder="Restock Quantity" required>
+                                                    <button type="submit" name="restock_merchandise" class="btn btn-warning">Restock</button>
+                                                </form>
+                                                <form method="POST" class="d-inline">
+                                                    <input type="hidden" name="merchandise_id" value="<?php echo $row['merchandise_id']; ?>">
+                                                    <input type="number" step="0.01" name="new_price" placeholder="New Price" required>
+                                                    <button type="submit" name="update_price" class="btn btn-info">Update Price</button>
+                                                </form>
+                                                <form method="POST" class="d-inline">
+                                                    <input type="hidden" name="merchandise_id" value="<?php echo $row['merchandise_id']; ?>">
+                                                    <button type="submit" name="remove_merchandise" class="btn btn-danger">Remove</button>
+                                                </form>
+                                            <?php else: ?>
+                                                <form method="POST">
+                                                    <input type="hidden" name="merchandise_id" value="<?php echo $row['merchandise_id']; ?>">
+                                                    <button type="submit" name="buy_merchandise" class="btn btn-buy" <?php echo $row['stock_quantity'] == 0 ? 'disabled' : ''; ?>>Buy</button>
+                                                </form>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endwhile; ?>
+                            </tbody>
+                        </table>
+                    <?php else: ?>
+                        <p class="text-center">No merchandise available at the moment.</p>
+                    <?php endif; ?>
+
+                    <?php
+                    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['buy_merchandise'])) {
+                        $merchandiseId = $_POST['merchandise_id'];
+
+                
+                        $updateStockQuery = "UPDATE Merchandise SET stock_quantity = stock_quantity - 1 WHERE merchandise_id = ? AND stock_quantity > 0";
+                        $stmt = mysqli_stmt_init($conn);
+                        if (mysqli_stmt_prepare($stmt, $updateStockQuery)) {
+                            mysqli_stmt_bind_param($stmt, "i", $merchandiseId);
+                            mysqli_stmt_execute($stmt);
+                            mysqli_stmt_close($stmt);
+                        }
+
+                        $purchaseQuery = "INSERT INTO buy_merchandise (customer_id, customer_email, merchandise_id) VALUES (?, ?, ?)";
+                        $stmt = mysqli_stmt_init($conn);
+                        if (mysqli_stmt_prepare($stmt, $purchaseQuery)) {
+                            mysqli_stmt_bind_param($stmt, "isi", $userId, $userEmail, $merchandiseId);
+                            mysqli_stmt_execute($stmt);
+                            mysqli_stmt_close($stmt);
+                        }
+
+
+                        $updatePointsQuery = "UPDATE person SET points = points + 1 WHERE personID = ?";
+                        $stmt = mysqli_stmt_init($conn);
+                        if (mysqli_stmt_prepare($stmt, $updatePointsQuery)) {
+                            mysqli_stmt_bind_param($stmt, "i", $userId);
+                            mysqli_stmt_execute($stmt);
+                            mysqli_stmt_close($stmt);
+                        }
+
+                        echo "<script>alert('Purchase confirmed successfully!');</script>";
+                        echo "<script>window.location.href = 'merchandise.php';</script>";
+                    }
+                    ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+</body>
+</html>
